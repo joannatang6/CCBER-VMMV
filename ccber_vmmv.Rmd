@@ -1,0 +1,101 @@
+---
+title: "ccber_vmmv"
+author: "Joanna Tang"
+date: "10/2/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include = FALSE}
+
+# Load packages, read in data
+
+library(tidyverse)
+library(janitor)
+library(plotrix)
+
+
+
+vmmv_monitoring <- read_csv("vmmv_monitoring.csv")  %>% mutate(date = as.Date(date, format = "%m/%d/%y"))
+vmmv_recruits <- read_csv("vmmv_recruits.csv") %>% mutate(date = as.Date(date, format = "%m/%d/%y"))
+
+
+```
+
+### H1: Zone affects vigor over time.
+#### Result: Zone has a significant effect on vigor.  H1 not supported.
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+
+# H1: Zone affects vigor over time.
+
+## Exploratory graphs
+vigor_hist <- ggplot(vmmv_monitoring, aes(x = vigor)) +
+  geom_histogram()
+#not normal -- skewed right
+vigor_qq <- ggplot(vmmv_monitoring, aes(sample = vigor)) +
+  geom_qq()
+#not normal
+
+# Dataframe calculating median vigor per zone
+summary_vigor <- vmmv_monitoring %>% 
+  filter(location == "Plover Area") %>% 
+  group_by(date, zone) %>% 
+  summarize(median_vigor = median(vigor)) %>% 
+  drop_na()
+
+# Scatterplot of vigor over time, by zone
+vigor_scatter <- vmmv_monitoring %>% 
+  filter(location == "Plover Area") %>% 
+  filter(zone != "NA") %>% 
+  ggplot(aes(x = date, y = vigor, color = zone)) +
+  geom_jitter(width = .1) +
+  geom_smooth(method = lm, aes(x = date, group = zone, color = zone), se = TRUE, size = .5) +
+  labs(title = "Plant vigor over time", x = "Date", y = "Vigor Index", caption = "Graph shows general linear model of plant vigor index (ranging from 1 = healthy to 4 = dead) over time \n Swale has lowest vigor") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_y_continuous(expand = c(0,0), limits = c(0.5, 4.5))
+vigor_scatter
+
+
+
+# Dataframe calculating % at each vigor
+vigor_proportions <- vmmv_monitoring %>% 
+  count(date, vigor, zone) %>% 
+  group_by(date, vigor, zone) %>% 
+  summarize(proportion = sum(n)/30) %>% 
+  drop_na() %>% 
+  filter(vigor <5)
+
+# Stacked column graph of vigor proportion over time
+vigor_col <- vigor_proportions %>% 
+  ggplot(aes(x = date, y = proportion, fill = as.factor(vigor))) +
+  geom_col(position = "fill") +
+  facet_wrap(~zone) +
+  scale_fill_manual(values = c("chartreuse4", "yellowgreen", "yellow2", "coral", "brown3", "tan3", "tan4"), name = "Vigor Index") +
+  labs(title = "Vigor proportions over time", x = "Date", y = "Proportion", caption = "Graph shows proportion of plant vigor index (ranging from 1 = healthy to 4 = dead) \n Zone has a significant effect on vigor (chi-squared = 59.22, p << 0.001)") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90))
+vigor_col
+
+
+## Chi-squared test of vigor proportions at 9/27/20, between zones
+vigor_chi_squared_matrix <- vmmv_monitoring %>% 
+  filter(date == "2020-08-27") %>% 
+  filter(vigor <5) %>% 
+  filter(zone != "NA") %>% 
+  count(zone, vigor) %>% 
+  spread(vigor, n) %>% # tell the fxn which column to spread by and what to fill the obs with
+  select(-zone)
+vigor_chi_squared_matrix[is.na(vigor_chi_squared_matrix)] <- 0
+rownames(vigor_chi_squared_matrix) <- c("Ridge", "Slope", "Swale")
+vigor_chi_squared <- chisq.test(vigor_chi_squared_matrix)
+#vigor_chi_squared
+#p << .001, chi-squared = 59.22
+
+```
