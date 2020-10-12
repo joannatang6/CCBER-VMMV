@@ -16,7 +16,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(janitor)
 library(plotrix)
-
+library(knitr)
+library(kableExtra)
 
 
 vmmv_monitoring <- read_csv("vmmv_monitoring.csv")  %>% mutate(date = as.Date(date, format = "%m/%d/%y"))
@@ -26,7 +27,7 @@ vmmv_recruits <- read_csv("vmmv_recruits.csv") %>% mutate(date = as.Date(date, f
 ```
 
 ### H1: Zone affects vigor over time.
-#### Result: Zone has a significant effect on vigor.  H1 not supported.
+#### Result: Zone has a significant effect on vigor.  H1 supported.
 
 ```{r message = FALSE, warning = FALSE, echo = FALSE}
 
@@ -84,7 +85,7 @@ vigor_col <- vigor_proportions %>%
 vigor_col
 
 
-## Chi-squared test of vigor proportions at 9/27/20, between zones
+## Chi-squared test of vigor proportions at 8/27/20, between zones
 vigor_chi_squared_matrix <- vmmv_monitoring %>% 
   filter(date == "2020-08-27") %>% 
   filter(vigor <5) %>% 
@@ -98,4 +99,128 @@ vigor_chi_squared <- chisq.test(vigor_chi_squared_matrix)
 #vigor_chi_squared
 #p << .001, chi-squared = 59.22
 
+# Table of percentages at each vigor at 8/27/20, between zones
+august_vigor_percentages <- kable(prop.table(as.matrix(vigor_chi_squared_matrix), 1) * 100, digits = 2) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+august_vigor_percentages
+
+
 ```
+<i> Table shows percentage of plants at each vigor (ranging from 1 = healthy to 4 = dead) in each zone during August 2020. </i>
+
+
+### H2: Zone affects fitness over time.
+#### Result: Swale plant fitness (average height and average number of inflorescneces) is significantly lower than that of plants in ridge or slope.  H2 supported.
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+
+# H2: Zone affects fitness over time.
+
+# Read in August monitoring data
+august_monitoring <- read_csv("august_monitoring.csv") %>% 
+  mutate(date = as.Date(date, format = "%m/%d/%y")) %>% 
+  mutate(avg_height = as.numeric(avg_height)) %>% 
+  mutate(inflorescences = as.numeric(inflorescences))
+
+## Exploratory graphs
+august_height_hist <- august_monitoring %>% 
+  ggplot() +
+  geom_histogram(aes(x = avg_height))
+#pretty normal
+august_height_qq <- august_monitoring %>% 
+  ggplot() +
+  geom_qq(aes(sample = avg_height))
+#pretty normal
+august_infl_hist <- august_monitoring %>% 
+  ggplot() +
+  geom_histogram(aes(x = inflorescences))
+#fairly normal...
+august_infl_qq <- august_monitoring %>% 
+  ggplot() +
+  geom_qq(aes(sample = inflorescences))
+#fairly normal...
+
+# Average size and reproduction of plants by zone in August
+august_summary <- august_monitoring %>% 
+  filter(date == "2020-08-27") %>% 
+  filter(notes != "dead") %>% 
+  group_by(zone) %>%
+  summarize(mean_height = mean(avg_height),
+            se_height = std.error(avg_height),
+            mean_infl = mean(inflorescences),
+            se_infl = std.error(inflorescences)
+            )
+
+# Column graph of August height by zone
+august_height_col <- august_summary %>% 
+  ggplot(aes(x = zone, y = mean_height)) +
+  geom_col() +
+  geom_errorbar(aes(x = zone, ymin = mean_height-se_height, ymax = mean_height+se_height, width = .5)) +
+  labs(title = "Size of VMMV", x = "Zone", y = "Average height", caption = "Graph of average height of plants, with standard error represented as error bars. \n Average plant height in swale is significantly lower \n than that in ridge and slope (ANOVA F = 12.28, p << 0.01)") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  theme_classic()
+august_height_col
+
+# August average height ANOVA
+august_height_anova <- aov(avg_height ~ zone, data = august_monitoring)
+#summary(august_height_anova)
+#p << 0.01, F-value = 12.28
+#Tukey's post-hoc
+august_height_tukey <- TukeyHSD(august_height_anova)
+#slope-ridge p = .13, swale-ridge p = .0035, swale-slope p = .000072
+
+# Column graph of August inflorescences by zone
+august_infl_col <- august_summary %>% 
+  ggplot(aes(x = zone, y = mean_infl)) +
+  geom_col() +
+  geom_errorbar(aes(x = zone, ymin = mean_infl-se_infl, ymax = mean_infl+se_infl, width = .5)) +
+  labs(title = "Reproduction of VMMV", x = "Zone", y = "Average number of inflorescences per plant", caption = "Graph of average number of inflorescences per plant, with standard error represented as error bars. \n Average number of inflorescneces per plant in swale is significantly lower \n than that in ridge and slope (ANOVA F = 18.33, p << 0.01)") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  theme_classic()
+august_infl_col
+
+# August average inflorescences ANOVA
+august_infl_anova <- aov(inflorescences ~ zone, data = august_monitoring)
+#summary(august_infl_anova)
+#p << 0.01, F-value = 18.33
+#Tukey's post-hoc
+august_infl_tukey <- TukeyHSD(august_infl_anova)
+#slope-ridge p = .21, swale-ridge p = .0000336, swale-slope p << .001
+
+```
+
+### H3: Zone affects seedling recruitment.
+#### Result: Zone has a significant effect on proportion of seedlings in each zone.  H3 supported.
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+
+# H1: Zone affects seedling recruitment.
+
+# Table of # recruits per zone
+summary_recruits <- vmmv_recruits %>% 
+  group_by(zone) %>% 
+  summarize(recruits = length(zone))
+
+# Column graph of # recruits per zone
+recruits_col <- summary_recruits %>% 
+  ggplot(aes(x = zone, y = recruits)) +
+  geom_col() +
+  labs(title = "Recruitment", x = "Zone", y = "# seedlings", caption = "Graph shows number of seedlings in each zone \n Zone has a significant effect on recruitment (chi-squared = 13.23, p = 0.001)") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  theme_classic()
+recruits_col
+
+# Chi-squared test
+sept_seedling_chi_squared_matrix <- summary_recruits %>% 
+  select(-zone)
+sept_seedling_chi_squared_matrix[is.na(sept_seedling_chi_squared_matrix)] <- 0
+rownames(sept_seedling_chi_squared_matrix) <- c("Ridge", "Slope", "Swale")
+sept_seedling_chi_squared <- chisq.test(sept_seedling_chi_squared_matrix)
+#sept_seedling_chi_squared
+#p = 0.001045, chi-squared = 13.727
+
+```
+
