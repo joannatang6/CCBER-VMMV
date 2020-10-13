@@ -18,6 +18,7 @@ library(janitor)
 library(plotrix)
 library(knitr)
 library(kableExtra)
+library(lubridate)
 
 
 vmmv_monitoring <- read_csv("vmmv_monitoring.csv")  %>% mutate(date = as.Date(date, format = "%m/%d/%y"))
@@ -52,13 +53,15 @@ summary_vigor <- vmmv_monitoring %>%
 vigor_scatter <- vmmv_monitoring %>% 
   filter(location == "Plover Area") %>% 
   filter(zone != "NA") %>% 
-  ggplot(aes(x = date, y = vigor, color = zone)) +
+  filter(vigor<5) %>% 
+  ggplot(aes(x = date, y = as.factor(-vigor), color = zone)) +
   geom_jitter(width = .1) +
   geom_smooth(method = lm, aes(x = date, group = zone, color = zone), se = TRUE, size = .5) +
-  labs(title = "Plant vigor over time", x = "Date", y = "Vigor Index", caption = "Graph shows general linear model of plant vigor index (ranging from 1 = healthy to 4 = dead) over time \n Swale has lowest vigor") +
+  labs(title = "Plant vigor over time", x = "Date", y = "Vigor Index", caption = "Graph shows general linear model of plant vigor index (ranging from 1 = healthy to 4 = dead) over time \n Swale has poorest vigor") +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90)) +
-  scale_y_continuous(expand = c(0,0), limits = c(0.5, 4.5))
+  scale_y_discrete(labels = c("4", "3", "2", "1")) +
+  scale_x_date(date_labels = "%B 1", breaks = "1 month")
 vigor_scatter
 
 
@@ -81,7 +84,8 @@ vigor_col <- vigor_proportions %>%
   theme_classic() +
   scale_y_continuous(expand = c(0,0)) +
   theme_classic() +
-  theme(axis.text.x = element_text(angle = 90))
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_x_date(date_labels = "%B", breaks = "1 month")
 vigor_col
 
 
@@ -156,7 +160,7 @@ august_height_col <- august_summary %>%
   ggplot(aes(x = zone, y = mean_height)) +
   geom_col() +
   geom_errorbar(aes(x = zone, ymin = mean_height-se_height, ymax = mean_height+se_height, width = .5)) +
-  labs(title = "Size of VMMV", x = "Zone", y = "Average height", caption = "Graph of average height of plants, with standard error represented as error bars. \n Average plant height in swale is significantly lower \n than that in ridge and slope (ANOVA F = 12.28, p << 0.01)") +
+  labs(title = "Size of VMMV", x = "Zone", y = "Average height (cm)", caption = "Graph of average height of plants, with standard error represented as error bars. \n Average plant height in swale is significantly lower \n than that in ridge and slope (ANOVA F = 12.28, p << 0.01)") +
   theme_classic() +
   scale_y_continuous(expand = c(0,0)) +
   theme_classic()
@@ -175,7 +179,7 @@ august_infl_col <- august_summary %>%
   ggplot(aes(x = zone, y = mean_infl)) +
   geom_col() +
   geom_errorbar(aes(x = zone, ymin = mean_infl-se_infl, ymax = mean_infl+se_infl, width = .5)) +
-  labs(title = "Reproduction of VMMV", x = "Zone", y = "Average number of inflorescences per plant", caption = "Graph of average number of inflorescences per plant, with standard error represented as error bars. \n Average number of inflorescneces per plant in swale is significantly lower \n than that in ridge and slope (ANOVA F = 18.33, p << 0.01)") +
+  labs(title = "Reproduction of VMMV", x = "Zone", y = "Average # inflorescences per plant", caption = "Graph of average number of inflorescences per plant, with standard error represented as error bars. \n Average number of inflorescneces per plant in swale is significantly lower \n than that in ridge and slope (ANOVA F = 18.33, p << 0.01)") +
   theme_classic() +
   scale_y_continuous(expand = c(0,0)) +
   theme_classic()
