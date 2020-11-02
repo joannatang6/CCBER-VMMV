@@ -19,10 +19,13 @@ library(plotrix)
 library(knitr)
 library(kableExtra)
 library(lubridate)
+library(RColorBrewer)
 
 
-vmmv_monitoring <- read_csv("vmmv_monitoring.csv")  %>% mutate(date = as.Date(date, format = "%m/%d/%y"))
-vmmv_recruits <- read_csv("vmmv_recruits.csv") %>% mutate(date = as.Date(date, format = "%m/%d/%y"))
+
+vmmv_monitoring <- read_csv("vmmv_monitoring.csv", col_types = cols(avg_height = col_number(), inflorescences = col_number(), plant_id = col_character()))  %>% mutate(date = as.Date(date, format = "%m/%d/%y"))
+
+vmmv_recruits <- read_csv("vmmv_recruits.csv", col_types = cols(basal_stems = col_number(), date = col_character(), flowering = col_character(), seedling_id = col_number(), series = col_integer(), vigor = col_number())) %>% mutate(date = as.Date(date, format = "%m/%d/%y"))
 
 
 ```
@@ -120,9 +123,9 @@ august_vigor_percentages
 
 # H2: Zone affects fitness over time.
 
-# Read in August monitoring data
-august_monitoring <- read_csv("august_monitoring.csv") %>% 
-  mutate(date = as.Date(date, format = "%m/%d/%y")) %>% 
+# Filter out only August monitoring data
+august_monitoring <- vmmv_monitoring %>% 
+  filter(date == "2020-08-27") %>% 
   mutate(avg_height = as.numeric(avg_height)) %>% 
   mutate(inflorescences = as.numeric(inflorescences))
 
@@ -147,7 +150,9 @@ august_infl_qq <- august_monitoring %>%
 # Average size and reproduction of plants by zone in August
 august_summary <- august_monitoring %>% 
   filter(date == "2020-08-27") %>% 
-  filter(notes != "dead") %>% 
+  filter(avg_height != "NA") %>% 
+  filter(inflorescences != "NA") %>% 
+  filter(zone != "NA") %>% 
   group_by(zone) %>%
   summarize(mean_height = mean(avg_height),
             se_height = std.error(avg_height),
@@ -160,7 +165,7 @@ august_height_col <- august_summary %>%
   ggplot(aes(x = zone, y = mean_height)) +
   geom_col() +
   geom_errorbar(aes(x = zone, ymin = mean_height-se_height, ymax = mean_height+se_height, width = .5)) +
-  labs(title = "Size of VMMV", x = "Zone", y = "Average height (cm)", caption = "Graph of average height of plants, with standard error represented as error bars. \n Average plant height in swale is significantly lower \n than that in ridge and slope (ANOVA F = 12.28, p << 0.01)") +
+  labs(title = "Size of VMMV", x = "Zone", y = "Average height (cm)", caption = "Graph of average height of plants in August 2020, with standard error represented as error bars. \n Average plant height in swale is significantly lower \n than that in ridge and slope (ANOVA F = 12.28, p << 0.01)") +
   theme_classic() +
   scale_y_continuous(expand = c(0,0)) +
   theme_classic()
@@ -179,7 +184,7 @@ august_infl_col <- august_summary %>%
   ggplot(aes(x = zone, y = mean_infl)) +
   geom_col() +
   geom_errorbar(aes(x = zone, ymin = mean_infl-se_infl, ymax = mean_infl+se_infl, width = .5)) +
-  labs(title = "Reproduction of VMMV", x = "Zone", y = "Average # inflorescences per plant", caption = "Graph of average number of inflorescences per plant, with standard error represented as error bars. \n Average number of inflorescneces per plant in swale is significantly lower \n than that in ridge and slope (ANOVA F = 18.33, p << 0.01)") +
+  labs(title = "Reproduction of VMMV", x = "Zone", y = "Average # inflorescences per plant", caption = "Graph of average number of inflorescences per plant in August 2020, with standard error represented as error bars. \n Average number of inflorescneces per plant in swale is significantly lower \n than that in ridge and slope (ANOVA F = 18.33, p << 0.01)") +
   theme_classic() +
   scale_y_continuous(expand = c(0,0)) +
   theme_classic()
@@ -196,35 +201,309 @@ august_infl_tukey <- TukeyHSD(august_infl_anova)
 ```
 
 ### H3: Zone affects seedling recruitment.
-#### Result: Zone has a significant effect on proportion of seedlings in each zone.  H3 supported.
+#### Result: Zone has no significant effect on proportion of surviving seedlings in each zone.  H3 rejected.
 
 ```{r message = FALSE, warning = FALSE, echo = FALSE}
 
 # H1: Zone affects seedling recruitment.
 
-# Table of # recruits per zone
-summary_recruits <- vmmv_recruits %>% 
+# Table of # recruits per zone in September 2020
+sept_recruits <- vmmv_recruits %>% 
+  filter(date == "2020-09-21") %>% 
+  filter(zone != "NA") %>% 
   group_by(zone) %>% 
   summarize(recruits = length(zone))
 
-# Column graph of # recruits per zone
-recruits_col <- summary_recruits %>% 
+# Dataframe total # recruits per month, per zone
+summary_recruits <- vmmv_recruits %>% 
+  group_by(date, zone) %>% 
+  summarize(sum_seedlings = sum(total_seedlings))
+
+# Line graph of total # recruits per zone over time
+recruits_line <- summary_recruits %>% 
+  ggplot(aes(x = date, y = sum_seedlings, color = zone)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Recruitment over time", x = "Date", y = "# seedlings", caption = "Graph shows total number of surviving seedlings over time") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_x_date(date_labels = "%B 1", breaks = "1 month")
+recruits_line
+
+# Column graph of # recruits per zone in September 2020
+recruits_col <- sept_recruits %>% 
   ggplot(aes(x = zone, y = recruits)) +
   geom_col() +
-  labs(title = "Recruitment", x = "Zone", y = "# seedlings", caption = "Graph shows number of seedlings in each zone \n Zone has a significant effect on recruitment (chi-squared = 13.23, p = 0.001)") +
+  labs(title = "Recruitment", x = "Zone", y = "# seedlings", caption = "Graph shows number of seedlings in each zone in September 2020 \n No significant differences (chi-squared = 3.82, p = 0.15)") +
   theme_classic() +
   scale_y_continuous(expand = c(0,0)) +
   theme_classic()
 recruits_col
 
-# Chi-squared test
-sept_seedling_chi_squared_matrix <- summary_recruits %>% 
+# Chi-squared test for September
+sept_seedling_chi_squared_matrix <- sept_recruits %>% 
   select(-zone)
 sept_seedling_chi_squared_matrix[is.na(sept_seedling_chi_squared_matrix)] <- 0
 rownames(sept_seedling_chi_squared_matrix) <- c("Ridge", "Slope", "Swale")
 sept_seedling_chi_squared <- chisq.test(sept_seedling_chi_squared_matrix)
 #sept_seedling_chi_squared
-#p = 0.001045, chi-squared = 13.727
+#p = .1484, chi-squared = 3.854
+
+
+# Dataframe of # seedlings per plant, per zone
+summary_recruits_per_plant <- vmmv_recruits %>% 
+  group_by(parent_plant_id, date, zone) %>% 
+  summarize(sum_seedlings = sum(total_seedlings)) %>% 
+  group_by(date, zone) %>% 
+  summarize(mean_seedlings_per_plant = mean(sum_seedlings),
+            se = std.error(sum_seedlings))
+  
+
+# Line graph of # seedlings per plant, per zone over time
+recruits_per_plant_line <- summary_recruits_per_plant %>% 
+  ggplot(aes(x = date, y = mean_seedlings_per_plant, color = zone)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Recruitment per plant over time", x = "Date", y = "# seedlings per plant", caption = "Graph shows mean number of seedlings per plant over time") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_x_date(date_labels = "%B 1", breaks = "1 month")
+recruits_per_plant_line
+
+# Column graph of # recruits per plant, per zone in September 2020
+recruits_per_plant_col <- summary_recruits_per_plant %>% 
+  filter(date == "2020-09-21") %>%
+  ggplot(aes(x = zone, y = mean_seedlings_per_plant)) +
+  geom_col() +
+  geom_errorbar(aes(x = zone, ymin = mean_seedlings_per_plant-se, ymax = mean_seedlings_per_plant+se, width = .5)) +
+  labs(title = "Recruitment per plant", x = "Zone", y = "# seedlings per plant", caption = "Graph shows average number of seedlings per plant in each zone in September 2020, \n with error bars representing standard error \n No significant differences (Kruskal-Wallis chi-squared = 0.14, p = 0.93)") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  scale_fill_grey(name = "Lineage") +
+  theme_classic()
+recruits_per_plant_col
+
+
+# Exploratory graphs
+sept_avg_recruits_hist <- vmmv_recruits %>% 
+  group_by(parent_plant_id, date, maternal_accession) %>% 
+  filter(maternal_accession != "NA") %>% 
+  filter(date == "2020-09-21") %>% 
+  summarize(sum_seedlings = sum(total_seedlings)) %>% 
+  ggplot(aes(x = sum_seedlings)) +
+  geom_histogram()
+#skewed right
+sept_avg_recruits_qq <- vmmv_recruits %>% 
+  group_by(parent_plant_id, date, maternal_accession) %>% 
+  filter(maternal_accession != "NA") %>% 
+  filter(date == "2020-09-21") %>% 
+  summarize(sum_seedlings = sum(total_seedlings)) %>% 
+  ggplot(aes(sample = sum_seedlings)) +
+  geom_qq()
+#skewed right
+
+# Kruskal-Wallis for September # seedlings per plant, by zone
+sept_seedling_per_plant_zone_df <- vmmv_recruits %>% 
+  group_by(parent_plant_id, date, zone) %>% 
+  summarize(sum_seedlings = sum(total_seedlings)) %>% 
+  filter(date == "2020-09-21")
+sept_seedling_per_plant_zone_kw <- kruskal.test(as.factor(sum_seedlings) ~ as.factor(zone), data = sept_seedling_per_plant_zone_df)
+#p = .9327, chi-squared = .13924, df = 2
+
+
+
 
 ```
+
+### H4: Maternal accession has no effect on seedling recruitment.
+#### Result: Maternal accession has no significant effect on proportion of surviving seedlings per plant from each accession.  H4 supported.
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+
+# H4: Maternal accession has no effect on seedling recruitment.
+
+# Dataframe total # recruits per month, per accession & lineage
+accessions_summary_recruits <- vmmv_recruits %>% 
+  group_by(date, maternal_accession, lineage) %>% 
+  filter(lineage != "NA") %>% 
+  summarize(sum_seedlings = sum(total_seedlings))
+
+# Line graph of total # recruits per zone over time
+accession_recruits_line <- accessions_summary_recruits %>% 
+  ggplot(aes(x = date, y = sum_seedlings, color = maternal_accession)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Recruitment over time", x = "Date", y = "# seedlings", caption = "Graph shows total number of surviving seedlings over time") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_color_brewer(palette = "Paired", name = "Maternal Accession") +
+  scale_x_date(date_labels = "%B 1", breaks = "1 month")
+accession_recruits_line
+
+# Column graph of # recruits per maternal accession in September 2020
+accession_recruits_col <- accessions_summary_recruits %>% 
+  filter(date == "2020-09-21") %>%
+  ggplot(aes(x = maternal_accession, y = sum_seedlings, fill = as.factor(lineage))) +
+  geom_col() +
+  labs(title = "Recruitment", x = "Maternal Accession", y = "# seedlings", caption = "Graph shows number of seedlings from each accession in September 2020 \n Maternal accession has significant effect on recruitment (chi-squared = 18.13, p = 0.020)") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  scale_fill_grey(name = "Lineage") +
+  theme_classic()
+accession_recruits_col
+
+# Chi-squared test for September
+accession_sept_seedling_chi_squared_matrix <- accessions_summary_recruits %>% 
+  filter(date == "2020-09-21") %>% 
+  group_by(maternal_accession) %>% 
+  summarize(sum = sum(sum_seedlings)) %>% 
+  select(-maternal_accession)
+accession_sept_seedling_chi_squared_matrix[is.na(accession_sept_seedling_chi_squared_matrix)] <- 0
+rownames(accession_sept_seedling_chi_squared_matrix) <- c("A2051", "A3002", "A3003", "A3015", "A3041", "A3051", "B227", "B29R", "B4001")
+accession_sept_seedling_chi_squared <- chisq.test(accession_sept_seedling_chi_squared_matrix)
+#accession_sept_seedling_chi_squared
+#p = .02028, chi-squared = 18.129
+
+
+# Dataframe of # seedlings per plant, per maternal accession
+accessions_recruits_per_plant <- vmmv_recruits %>% 
+  group_by(parent_plant_id, date, maternal_accession) %>% 
+  filter(maternal_accession != "NA") %>% 
+  summarize(sum_seedlings = sum(total_seedlings)) %>% 
+  group_by(date, maternal_accession) %>% 
+  summarize(mean_seedlings_per_plant = mean(sum_seedlings))
+
+
+# Line graph of # seedlings per plant, per zone over time
+accessions_recruits_per_plant_line <- accessions_recruits_per_plant %>% 
+  ggplot(aes(x = date, y = mean_seedlings_per_plant, color = maternal_accession)) +
+  geom_point() +
+  geom_line() +
+  labs(title = "Recruitment per plant over time", x = "Date", y = "# seedlings per plant", caption = "Graph shows mean number of seedlings per plant over time") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_color_brewer(palette = "Paired", name = "Maternal Accession") +
+  scale_x_date(date_labels = "%B 1", breaks = "1 month")
+accessions_recruits_per_plant_line
+
+# Column graph of # recruits per plant, per maternal accession in September 2020
+accession_recruits_per_plant_col <- vmmv_recruits %>% 
+  filter(date == "2020-09-21") %>%
+  group_by(parent_plant_id, date, maternal_accession, lineage) %>% 
+  filter(maternal_accession != "NA") %>% 
+  summarize(sum_seedlings = sum(total_seedlings)) %>% 
+  group_by(date, maternal_accession, lineage) %>% 
+  summarize(mean_seedlings_per_plant = mean(sum_seedlings)) %>% 
+  ggplot(aes(x = maternal_accession, y = mean_seedlings_per_plant, fill = as.factor(lineage))) +
+  geom_col() +
+  labs(title = "Recruitment per plant", x = "Maternal Accession", y = "# seedlings per plant", caption = "Graph shows average number of seedlings per plant from each lineage in September 2020 \n No significant differences (Kruskal-Wallis chi-squared = 7.57, p = 0.48)") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  scale_fill_grey(name = "Lineage") +
+  theme_classic()
+accession_recruits_per_plant_col
+
+
+# Kruskall-Wallis for September # seedlings per plant, by accession
+sept_seedling_per_plant_accession_df <- vmmv_recruits %>% 
+  group_by(parent_plant_id, date, maternal_accession) %>% 
+  summarize(sum_seedlings = sum(total_seedlings)) %>% 
+  filter(date == "2020-09-21")
+sept_seedling_per_plant_accession_kw <- kruskal.test(as.factor(sum_seedlings) ~ as.factor(maternal_accession), data = sept_seedling_per_plant_accession_df)
+#p = .4761, chi-squared = 7.5741, df = 8
+
+
+
+
+
+```
+
+
+### H5: Maternal accession has no effect on vigor.
+#### Result: Maternal accession has no significant effect on plant vigor.  H5 supported.
+
+```{r message = FALSE, warning = FALSE, echo = FALSE}
+
+# H5: Maternal accession has no effect on vigor.
+
+# Dataframe of vigor over time, by maternal accession
+accession_summary_vigor <- vmmv_monitoring %>% 
+  filter(location == "Plover Area") %>% 
+  group_by(date, maternal_accession) %>% 
+  summarize(median_vigor = median(vigor)) %>% 
+  drop_na()
+
+# Scatterplot of vigor over time, by zone
+accession_vigor_scatter <- vmmv_monitoring %>% 
+  filter(location == "Plover Area") %>% 
+  filter(maternal_accession != "NA") %>% 
+  filter(vigor<5) %>% 
+  ggplot(aes(x = date, y = as.factor(-vigor), color = maternal_accession)) +
+  geom_jitter(width = .1) +
+  geom_smooth(method = lm, aes(x = date, group = maternal_accession, color = maternal_accession), se = TRUE, size = .5) +
+  labs(title = "Plant vigor over time", x = "Date", y = "Vigor Index", caption = "Graph shows general linear model of plant vigor index (ranging from 1 = healthy to 4 = dead) for each accession") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_y_discrete(labels = c("4", "3", "2", "1")) +
+  scale_x_date(date_labels = "%B 1", breaks = "1 month") +
+  scale_color_brewer(palette = "Paired", name = "Maternal Acceession")
+#accession_vigor_scatter
+
+
+
+# Dataframe calculating total # plants from each accession at each monitoring date
+accession_totals <- vmmv_monitoring %>% 
+  filter(maternal_accession != "NA") %>% 
+  count(date, vigor, maternal_accession) %>% 
+  group_by(date, maternal_accession) %>% 
+  summarize(total_per_accession = sum(n))
+
+# Dataframe calculating % at each vigor, per accession
+accession_vigor_proportions <- vmmv_monitoring %>% 
+  full_join(accession_totals) %>% 
+  filter(maternal_accession != "NA") %>% 
+  count(date, vigor, maternal_accession, total_per_accession) %>% 
+  mutate(proportion = n/total_per_accession) %>% 
+  drop_na() %>% 
+  filter(vigor <5)
+
+# Stacked column graph of vigor proportion over time, per accession
+accession_vigor_col <- accession_vigor_proportions %>% 
+  ggplot(aes(x = date, y = proportion, fill = as.factor(vigor))) +
+  geom_col(position = "fill") +
+  facet_wrap(~maternal_accession) +
+  scale_fill_manual(values = c("chartreuse4", "yellowgreen", "yellow2", "coral", "brown3", "tan3", "tan4"), name = "Vigor Index") +
+  labs(title = "Vigor proportions over time", x = "Date", y = "Proportion", caption = "Graph shows proportion of plant vigor index (ranging from 1 = healthy to 4 = dead) \n Maternal acceession has no effect on vigor (chi-squared = 30.20, p = 0.18)") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 90)) +
+  scale_x_date(date_labels = "%B", breaks = "1 month")
+accession_vigor_col
+
+
+## Chi-squared test of vigor proportions at 8/27/20, between accessions
+accession_vigor_chi_squared_matrix <- vmmv_monitoring %>% 
+  filter(date == "2020-08-27") %>% 
+  filter(vigor <5) %>% 
+  filter(maternal_accession != "NA") %>% 
+  count(maternal_accession, vigor) %>% 
+  spread(vigor, n) %>% # tell the fxn which column to spread by and what to fill the obs with
+  select(-maternal_accession)
+accession_vigor_chi_squared_matrix[is.na(accession_vigor_chi_squared_matrix)] <- 0
+rownames(accession_vigor_chi_squared_matrix) <- c("A2051", "A3002", "A3003", "A3015", "A3041", "A3051", "B227", "B29R", "B4001")
+accession_vigor_chi_squared <- chisq.test(accession_vigor_chi_squared_matrix)
+#accession_vigor_chi_squared
+#p = .1783, chi-squared = 30.199
+
+# Table of percentages at each vigor at 8/27/20, between accessions
+august_accession_vigor_percentages <- kable(prop.table(as.matrix(accession_vigor_chi_squared_matrix), 1) * 100, digits = 2) %>% 
+  kable_styling(bootstrap_options = c("striped", "hover"), full_width = FALSE)
+august_accession_vigor_percentages
+
+
+
+
+```
+<i> Table shows percentage of plants at each vigor (ranging from 1 = healthy to 4 = dead) from each accession during August 2020. </i>
 
