@@ -1,5 +1,5 @@
 ---
-title: "ccber_vmmv"
+title: "CCBER VMMV"
 author: "Joanna Tang"
 date: "10/2/2020"
 output: html_document
@@ -234,7 +234,7 @@ recruits_line
 recruits_col <- sept_recruits %>% 
   ggplot(aes(x = zone, y = recruits)) +
   geom_col() +
-  labs(title = "Recruitment", x = "Zone", y = "# seedlings", caption = "Graph shows number of seedlings in each zone in September 2020 \n No significant differences (chi-squared = 3.82, p = 0.15)") +
+  labs(title = "Recruitment", x = "Zone", y = "# seedlings", caption = "Graph shows total number of seedlings in each zone in September 2020 \n No significant differences (chi-squared = 3.82, p = 0.15)") +
   theme_classic() +
   scale_y_continuous(expand = c(0,0)) +
   theme_classic()
@@ -264,7 +264,7 @@ recruits_per_plant_line <- summary_recruits_per_plant %>%
   ggplot(aes(x = date, y = mean_seedlings_per_plant, color = zone)) +
   geom_point() +
   geom_line() +
-  labs(title = "Recruitment per plant over time", x = "Date", y = "# seedlings per plant", caption = "Graph shows mean number of seedlings per plant over time") +
+  labs(title = "Recruitment per plant over time", x = "Date", y = "# seedlings per plant", caption = "Graph shows average number of seedlings per plant over time") +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90)) +
   scale_x_date(date_labels = "%B 1", breaks = "1 month")
@@ -324,7 +324,7 @@ sept_seedling_per_plant_zone_kw <- kruskal.test(as.factor(sum_seedlings) ~ as.fa
 
 # Dataframe total # recruits per month, per accession & lineage
 accessions_summary_recruits <- vmmv_recruits %>% 
-  group_by(date, maternal_accession, lineage) %>% 
+  group_by(date, maternal_accession) %>% 
   filter(lineage != "NA") %>% 
   summarize(sum_seedlings = sum(total_seedlings))
 
@@ -343,12 +343,11 @@ accession_recruits_line
 # Column graph of # recruits per maternal accession in September 2020
 accession_recruits_col <- accessions_summary_recruits %>% 
   filter(date == "2020-09-21") %>%
-  ggplot(aes(x = maternal_accession, y = sum_seedlings, fill = as.factor(lineage))) +
+  ggplot(aes(x = maternal_accession, y = sum_seedlings)) +
   geom_col() +
-  labs(title = "Recruitment", x = "Maternal Accession", y = "# seedlings", caption = "Graph shows number of seedlings from each accession in September 2020 \n Maternal accession has significant effect on recruitment (chi-squared = 18.13, p = 0.020)") +
+  labs(title = "Recruitment", x = "Maternal Accession", y = "# seedlings", caption = "Graph shows total number of seedlings from each accession in September 2020 \n Maternal accession has significant effect on total number of seedlings (chi-squared = 18.13, p = 0.020)") +
   theme_classic() +
   scale_y_continuous(expand = c(0,0)) +
-  scale_fill_grey(name = "Lineage") +
   theme_classic()
 accession_recruits_col
 
@@ -379,7 +378,7 @@ accessions_recruits_per_plant_line <- accessions_recruits_per_plant %>%
   ggplot(aes(x = date, y = mean_seedlings_per_plant, color = maternal_accession)) +
   geom_point() +
   geom_line() +
-  labs(title = "Recruitment per plant over time", x = "Date", y = "# seedlings per plant", caption = "Graph shows mean number of seedlings per plant over time") +
+  labs(title = "Recruitment per plant over time", x = "Date", y = "# seedlings per plant", caption = "Graph shows average number of seedlings per plant over time") +
   theme_classic() +
   theme(axis.text.x = element_text(angle = 90)) +
   scale_color_brewer(palette = "Paired", name = "Maternal Accession") +
@@ -392,14 +391,15 @@ accession_recruits_per_plant_col <- vmmv_recruits %>%
   group_by(parent_plant_id, date, maternal_accession, lineage) %>% 
   filter(maternal_accession != "NA") %>% 
   summarize(sum_seedlings = sum(total_seedlings)) %>% 
-  group_by(date, maternal_accession, lineage) %>% 
-  summarize(mean_seedlings_per_plant = mean(sum_seedlings)) %>% 
-  ggplot(aes(x = maternal_accession, y = mean_seedlings_per_plant, fill = as.factor(lineage))) +
+  group_by(date, maternal_accession) %>% 
+  summarize(mean_seedlings_per_plant = mean(sum_seedlings),
+            se = std.error(sum_seedlings)) %>% 
+  ggplot(aes(x = maternal_accession, y = mean_seedlings_per_plant)) +
   geom_col() +
+  geom_errorbar(aes(x = maternal_accession, ymin = mean_seedlings_per_plant-se, ymax = mean_seedlings_per_plant+se, width = .5)) + 
   labs(title = "Recruitment per plant", x = "Maternal Accession", y = "# seedlings per plant", caption = "Graph shows average number of seedlings per plant from each lineage in September 2020 \n No significant differences (Kruskal-Wallis chi-squared = 7.57, p = 0.48)") +
   theme_classic() +
   scale_y_continuous(expand = c(0,0)) +
-  scale_fill_grey(name = "Lineage") +
   theme_classic()
 accession_recruits_per_plant_col
 
