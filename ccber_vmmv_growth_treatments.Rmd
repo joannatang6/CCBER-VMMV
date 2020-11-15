@@ -1,0 +1,294 @@
+---
+title: "CCBER VMMV Growth Treatments"
+author: "Joanna Tang"
+date: "11/8/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## What are the best conditions for germination and quick growth of VMMV?
+
+```{r include = FALSE}
+
+# Load packages, read in data
+
+library(tidyverse)
+library(janitor)
+library(plotrix)
+library(knitr)
+library(kableExtra)
+library(lubridate)
+library(RColorBrewer)
+
+
+
+vmmv_growth_treatments <- read_csv("growth_treatment_data.csv", 
+     col_types = cols(`4th leaf -\nlength (cm)` = col_number(), 
+         `4th leaf:\n# of leaflets` = col_integer(), 
+         `5th leaf:\n# of leaflets` = col_integer(), 
+         `5th leaf:\nlength (cm)` = col_number(), 
+         `6th leaf:\n# of leaflets` = col_integer(), 
+         `6th leaf:\nlength (cm)` = col_number(), 
+         `7th leaf:\n# of leaflets` = col_integer(), 
+         `7th leaf:\nlength (cm)` = col_number(), 
+         `8th leaf:\n# of leaflets` = col_integer(), 
+         `8th leaf:\nlength (cm)` = col_number(), 
+         `9th leaf:\n# of leaflets` = col_integer(), 
+         `9th leaf:\nlength (cm)` = col_number(), 
+         `9th leaf:\nstate` = col_character(), 
+         X43 = col_skip(), X44 = col_skip(), 
+         X45 = col_skip()))
+
+
+```
+
+### H1: Soil type affects growth.
+#### Result: Plants in plover soil had lowest average leaf length and smallest number of leaflets per leaf.  H1 supported.
+
+```{r echo = FALSE, message = FALSE, warning = FALSE}
+
+# Eliminate all measurements from pots in which seed didn't germinate, add column of time lapse between planting and health assessment
+growth_treatments <- vmmv_growth_treatments %>% 
+  clean_names() %>% 
+  filter(germinated_before_planting == "Y") %>% 
+  mutate(date_of_planting = as.Date(date_of_planting, format = "%m/%d/%y")) %>% 
+  mutate(germination_date = as.Date(germination_date, format = "%m/%d/%y")) %>% 
+  mutate(n_added = as.Date(n_added, format = "%m/%d/%y")) %>% 
+  mutate(date = as.Date(date, format = "%m/%d/%y")) %>% 
+  mutate(date_of_planting_julian = yday(date_of_planting)) %>% 
+  mutate(health_date_julian = yday(date)) %>% 
+  mutate(health_date_julian = as.integer(health_date_julian)) %>% 
+  mutate(date_of_planting_julian = as.integer(date_of_planting_julian)) %>% 
+  mutate(assessment_age = health_date_julian - date_of_planting_julian) %>% 
+  pivot_longer(cols = ends_with("_leaf_state"),
+               names_to = "leaf",
+               values_to = "leaf_state",
+               values_drop_na = TRUE)
+
+# Mean leaf length
+  
+## Create df in long format for leaf length
+leaf_length_df <- vmmv_growth_treatments %>% 
+  clean_names() %>% 
+  filter(germinated_before_planting == "Y") %>% 
+  mutate(date_of_planting = as.Date(date_of_planting, format = "%m/%d/%y")) %>% 
+  mutate(germination_date = as.Date(germination_date, format = "%m/%d/%y")) %>% 
+  mutate(n_added = as.Date(n_added, format = "%m/%d/%y")) %>% 
+  mutate(date = as.Date(date, format = "%m/%d/%y")) %>% 
+  mutate(date_of_planting_julian = yday(date_of_planting)) %>% 
+  mutate(health_date_julian = yday(date)) %>% 
+  mutate(health_date_julian = as.integer(health_date_julian)) %>% 
+  mutate(date_of_planting_julian = as.integer(date_of_planting_julian)) %>% 
+  mutate(assessment_age = health_date_julian - date_of_planting_julian) %>% 
+  pivot_longer(cols = ends_with("_leaf_length_cm"),
+               names_to = "leaf",
+               values_to = "leaf_length",
+               values_drop_na = TRUE)
+
+## Exploratory graphs, by leaf
+leaf_length_hist <- leaf_length_df %>% 
+  ggplot() +
+  geom_histogram(aes(x = leaf_length))
+#pretty normal -- a bit skewed left
+leaf_length_qq <- leaf_length_df %>% 
+  ggplot() +
+  geom_qq(aes(sample = leaf_length))
+#pretty normal -- a bit skewed left
+leaf_length_by_leaf_anova <- aov(leaf_length ~ leaf, data = leaf_length_df)
+#summary(leaf_length_by_leaf_anova)
+#p = .0379, F-value = 2.391
+#Tukey's post-hoc
+leaf_length_by_leaf_tukey <- TukeyHSD(leaf_length_by_leaf_anova)
+#only sig diff b/t 7-5 (second-most diff is 8-5)
+
+
+## Dataframe of average leaf length per plant
+leaf_length_avgs <- leaf_length_df %>% 
+  group_by(sample_id, assessment_age, soil_type) %>% 
+  summarize(avg_leaf_length = mean(leaf_length))
+
+## Exploratory graphs of averages
+leaf_length_avg_hist <- leaf_length_avgs %>% 
+  ggplot() +
+  geom_histogram(aes(x = avg_leaf_length))
+#pretty normal -- a bit skewed left
+leaf_length_avg_qq <- leaf_length_avgs %>% 
+  ggplot() +
+  geom_qq(aes(sample = avg_leaf_length))
+#pretty normal -- a bit skewed left
+
+## ANOVA for mean leaf length, by age
+leaf_length_anova <- aov(avg_leaf_length ~ as.factor(assessment_age), data = leaf_length_avgs)
+#summary(leaf_length_anova)
+#p << .001, F-value = 8.742
+#Tukey's post-hoc
+leaf_length_tukey <- TukeyHSD(leaf_length_anova)
+#only sig diff b/t 111-100, 178-100, 198-100, 209-100, 178-111, 209-111, 178-117, 178-119, 178-139, 209-139, 209-150
+##--> only use ages 111-176
+
+## Dataframe of average leaf length per plant, for only ages 111-176
+leaf_length_111_176 <- leaf_length_avgs %>% 
+  filter(assessment_age >100) %>% 
+  filter(assessment_age <178)
+
+## ANOVA for mean leaf length, by age, for only ages 111-176
+leaf_length_111_176_anova <- aov(avg_leaf_length ~ as.factor(assessment_age), data = leaf_length_111_176)
+#summary(leaf_length_111_176_anova)
+#p = .799, F-value = .51
+
+## Column graph of leaf length
+leaf_length_col <- leaf_length_111_176 %>%
+  group_by(soil_type) %>% 
+  summarize(mean_leaf_length = mean(avg_leaf_length),
+            se = std.error(avg_leaf_length)) %>% 
+  ggplot(aes(x = soil_type)) +
+  geom_col(aes(y = mean_leaf_length)) +
+  geom_errorbar(aes(ymin = mean_leaf_length-se, ymax = mean_leaf_length+se, width = .5)) +
+  labs(title = "Leaf length", x = "Soil Type", y = "Average leaf length (cm)", caption = "Graph of average number of leaf length, with standard error represented as error bars. \n Plants in plover soil had significantly shorter leaves than those in EEM and iris soils (ANOVA F = 3.3, p = .02).") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  theme_classic()
+leaf_length_col
+
+## ANOVA for mean leaf length, by treatment
+leaf_length_treatment_anova <- aov(avg_leaf_length ~ soil_type, data = leaf_length_111_176)
+#summary(leaf_length_treatment_anova)
+#p = .0227, F-value = 3.347
+#Tukey's post-hoc
+leaf_length_treatment_tukey <- TukeyHSD(leaf_length_treatment_anova)
+#plover-EEM p = .0281344, potting soil-plover p = .0398441
+
+
+
+
+# Mean # leaflets
+
+## Create df in long format for # leaflets
+leaflets_df <- vmmv_growth_treatments %>% 
+  clean_names() %>% 
+  filter(germinated_before_planting == "Y") %>% 
+  mutate(date_of_planting = as.Date(date_of_planting, format = "%m/%d/%y")) %>% 
+  mutate(germination_date = as.Date(germination_date, format = "%m/%d/%y")) %>% 
+  mutate(n_added = as.Date(n_added, format = "%m/%d/%y")) %>% 
+  mutate(date = as.Date(date, format = "%m/%d/%y")) %>% 
+  mutate(date_of_planting_julian = yday(date_of_planting)) %>% 
+  mutate(health_date_julian = yday(date)) %>% 
+  mutate(health_date_julian = as.integer(health_date_julian)) %>% 
+  mutate(date_of_planting_julian = as.integer(date_of_planting_julian)) %>% 
+  mutate(assessment_age = health_date_julian - date_of_planting_julian) %>% 
+  pivot_longer(cols = ends_with("_leaf_number_of_leaflets"),
+               names_to = "leaf",
+               values_to = "leaflets",
+               values_drop_na = TRUE)
+
+## Exploratory graphs, by leaf
+leaflets_hist <- leaflets_df %>% 
+  ggplot() +
+  geom_histogram(aes(x = leaflets))
+#pretty normal -- a bit skewed left
+leaflets_qq <- leaflets_df %>% 
+  ggplot() +
+  geom_qq(aes(sample = leaflets))
+#pretty normal -- a bit skewed left
+leaflets_by_leaf_anova <- aov(leaflets ~ leaf, data = leaflets_df)
+#summary(leaflets_by_leaf_anova)
+#p << .001, F-value = 66.74
+#Tukey's post-hoc
+leaflets_by_leaf_tukey <- TukeyHSD(leaflets_by_leaf_anova)
+#sig diff b/t 5-4, 6-4, 7-4, 8-4, 9-4, 5-4, 7-5, 8-5, 9-5, 7-6, 8-6, 9-6
+
+## Dataframe of # leaflets, for only ages 111-176
+leaflets_111_176 <- leaflets_df %>% 
+  filter(assessment_age >100) %>% 
+  filter(assessment_age <178)
+
+## ANOVA of average leaflets per leaf, for only ages 111-176
+leaflets_111_176_anova <- aov(leaflets ~ leaf, data = leaflets_111_176)
+#summary(leaflets_111_176_anova)
+#p << .001, F-value = 76.49
+
+## Dataframe of # leaflets, for only leaf 5
+leaflets_5 <- leaflets_df %>% 
+  filter(leaf == "x5th_leaf_number_of_leaflets")
+
+## ANOVA of average leaflets on leaf 6, by age
+leaflets_5_anova <- aov(leaflets ~ as.factor(assessment_age), data = leaflets_5)
+#summary(leaflets_5_anova)
+#p = .0783, F-value = 1.838
+
+## Dataframe of # leaflets, for only leaf 6
+leaflets_6 <- leaflets_df %>% 
+  filter(leaf == "x6th_leaf_number_of_leaflets")
+
+## ANOVA of average leaflets on leaf 6, by age
+leaflets_6_anova <- aov(leaflets ~ as.factor(assessment_age), data = leaflets_6)
+#summary(leaflets_6_anova)
+#p << .001, F-value = 4.217
+leaflets_6_tukey <- TukeyHSD(leaflets_6_anova)
+#only sig diff b/t 209-100, 150-111, 198-111, 209-111
+
+## Dataframe of # leaflets, for only leaf 7
+leaflets_7 <- leaflets_df %>% 
+  filter(leaf == "x7th_leaf_number_of_leaflets")
+
+## ANOVA of average leaflets on leaf 7, by age
+leaflets_7_anova <- aov(leaflets ~ as.factor(assessment_age), data = leaflets_7)
+#summary(leaflets_7_anova)
+#p << .001, F-value = 9.26
+leaflets_7_tukey <- TukeyHSD(leaflets_7_anova)
+#only sig diff b/t 178-100, 198-100, 150-111, 178-111, 198-111, 209-111, 178-117, 178-119, 178-139, 198-139, 178-150
+
+## Dataframe of # leaflets, for only leaf 8
+leaflets_8 <- leaflets_df %>% 
+  filter(leaf == "x8th_leaf_number_of_leaflets")
+
+## ANOVA of average leaflets on leaf 8, by age
+leaflets_8_anova <- aov(leaflets ~ as.factor(assessment_age), data = leaflets_8)
+#summary(leaflets_8_anova)
+#p << .001, F-value = 5.222
+leaflets_8_tukey <- TukeyHSD(leaflets_8_anova)
+#only sig diff b/t 119-111, 150-111, 198-111
+
+
+## Dataframe of average leaflets on leaf #6, by age, for only ages 111-176
+leaflets_111_176 <- leaflets_6 %>% 
+  filter(assessment_age >100) %>% 
+  filter(assessment_age <178)
+
+## Exploratory graphs of leaflets for #6
+leaflets_6_hist <- leaflets_111_176 %>% 
+  ggplot() +
+  geom_histogram(aes(x = leaflets))
+#pretty normal -- a bit skewed left
+leaflets_6_qq <- leaflets_111_176 %>% 
+  ggplot() +
+  geom_qq(aes(sample = leaflets))
+#pretty normal -- a bit skewed left
+
+## Column graph of # leaflets
+leaflets_col <- leaflets_111_176 %>% 
+  group_by(soil_type) %>% 
+  summarize(mean_leaflets = mean(leaflets), 
+            se = std.error(leaflets)) %>% 
+  ggplot(aes(x = soil_type)) +
+  geom_col(aes(y = mean_leaflets)) +
+  geom_errorbar(aes(ymin = mean_leaflets-se, ymax = mean_leaflets+se, width = .5)) +
+  labs(title = "Number of leaflets on leaf #6", x = "Soil Type", y = "Average number of leaflets", caption = "Graph of average number of leaflets on leaf #6 on each plant, with standard error represented as error bars. \n Leaflet #6 has a significantly lower number of leaflets on plants in plover soil \n than those in iris or potting soil (ANOVA F = 3.33, p = .02.") +
+  theme_classic() +
+  scale_y_continuous(expand = c(0,0)) +
+  theme_classic()
+leaflets_col
+
+## ANOVA for mean leaflets on #6, by treatment
+leaflets_treatment_anova <- aov(leaflets ~ soil_type, data = leaflets_111_176)
+#summary(leaflets_treatment_anova)
+#p = .0246, F-value = 3.334
+#Tukey's post-hoc
+leaflets_treatment_tukey <- TukeyHSD(leaflets_treatment_anova)
+#plover-iris p = .0893056, potting soil-plover p = .0156220
+
+
+```
